@@ -82,9 +82,11 @@ def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
 
     # if use_classifier:
     classifier = auto_classifier_from_pretrained(hyp.ir152_save_path).to(hyp.device)
+    classifier.eval()
 
-    TP = np.zeros_like((len(dataset.classes), iou_thresholds))
-    FP = np.zeros_like((len(dataset.classes), iou_thresholds))
+    # print(len(dataset.classes))
+    TP = np.zeros((len(dataset.classes), len(iou_thresholds)))
+    FP = np.zeros((len(dataset.classes), len(iou_thresholds)))
 
     ALL = np.zeros((len(dataset.classes),))
 
@@ -108,11 +110,12 @@ def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
 
             # if use_classifier:
             newim = img.crop((x1, y1, x2, y2))
-            newim_tensor = trans(newim).to(hyp.device)
+            newim_tensor = trans(newim).unsqueeze(0).to(hyp.device)
             pred = classifier(newim_tensor)[0].argmax(dim=-1).cpu().item()
-            mask = iou_thresholds >= iou and pred == target
+            mask = (iou_thresholds >= iou) & (pred == target)
 
             all_iou.append(iou)
+            # print(TP.shape, pred)
             TP[pred][mask] += 1
             FP[pred][~mask] += 1
             break
@@ -134,10 +137,10 @@ def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
 
 
 if __name__ == '__main__':
-    precision, recall, f1, ap, meaniou = evaluation_nontarget('val')
-    print(ap, meaniou)
-    os.makedirs('./results_eval')
-    torch.save([precision, recall, f1, ap, meaniou], 'val_nontarget.pt')
+    # precision, recall, f1, ap, meaniou = evaluation_nontarget('val')
+    # print(ap, meaniou)
+    # os.makedirs('./results_eval')
+    # torch.save([precision, recall, f1, ap, meaniou], 'val_nontarget.pt')
     precision, recall, f1, ap, meaniou = evaluation_target('val')
     print(ap, meaniou)
     os.makedirs('./results_eval')
