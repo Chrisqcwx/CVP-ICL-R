@@ -36,9 +36,11 @@ def compute_ap(precision, recall):
 
 
 @torch.no_grad()
-def evaluation_nontarget(mode, iou_thresholds=default_iou_thresholds):
+def evaluation_nontarget(mode, iou_thresholds=default_iou_thresholds, alpha=0.709):
 
-    dataset = ClassificationDataset(hyp.anno_path, hyp.raw_dataset_dir, mode=mode)
+    dataset = ClassificationDataset(
+        hyp.anno_path, hyp.raw_dataset_dir, mode=mode, labeled=False
+    )
     detector = Detector(hyp.lownet_path, hyp.midnet_path, hyp.highnet_path, hyp.device)
 
     # if use_classifier:
@@ -50,7 +52,7 @@ def evaluation_nontarget(mode, iou_thresholds=default_iou_thresholds):
     all_iou = []
 
     for img, target, label_box in tqdm(dataset):
-        pred_boxes = detector.detect(img)
+        pred_boxes = detector.detect(img, low_pred_scaler=alpha)
         if len(pred_boxes) == 0:
             continue
         ious = boxutils.iou(label_box, pred_boxes)
@@ -75,7 +77,7 @@ def evaluation_nontarget(mode, iou_thresholds=default_iou_thresholds):
 
 
 @torch.no_grad()
-def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
+def evaluation_target(mode, iou_thresholds=default_iou_thresholds, alpha=0.709):
 
     dataset = ClassificationDataset(hyp.anno_path, hyp.raw_dataset_dir, mode=mode)
     detector = Detector(hyp.lownet_path, hyp.midnet_path, hyp.highnet_path, hyp.device)
@@ -93,7 +95,7 @@ def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
     all_iou = []
 
     for img, target, label_box in tqdm(dataset):
-        pred_boxes = detector.detect(img)
+        pred_boxes = detector.detect(img, low_pred_scaler=alpha)
         if len(pred_boxes) == 0:
             # FP += 1
             continue
@@ -137,36 +139,55 @@ def evaluation_target(mode, iou_thresholds=default_iou_thresholds):
     return precision.mean(axis=0), recall.mean(axis=0), f1.mean(axis=0), aps, meaniou
 
 
+import time
+
 if __name__ == '__main__':
-    # precision, recall, f1, ap, meaniou = evaluation_nontarget('val')
-    # print(ap, meaniou)
-    # os.makedirs('./results_eval')
-    # torch.save([precision, recall, f1, ap, meaniou], 'val_nontarget.pt')
-    # precision, recall, f1, ap, meaniou = evaluation_target('val')
-    # print(ap, meaniou)
-    # os.makedirs('./results_eval', exist_ok=True)
-    # torch.save([precision, recall, f1, ap, meaniou], 'val_target.pt')
 
-    # precision, recall, f1, ap, meaniou = evaluation_nontarget('test')
-    # print(ap, meaniou)
-    # torch.save([precision, recall, f1, ap, meaniou], 'test_nontarget.pt')
-    # precision, recall, f1, ap, meaniou = evaluation_target('test')
-    # print(ap, meaniou)
-    # torch.save([precision, recall, f1, ap, meaniou], 'test_target.pt')
+    os.makedirs('./results_eval', exist_ok=True)
+    for alpha in [0.5, 0.6, 0.7, 0.8, 0.9]:
+        # t = time.time()
+        # precision, recall, f1, ap, meaniou = evaluation_nontarget('val')
+        # print(ap, meaniou)
+        # torch.save(
+        #     [precision, recall, f1, ap, meaniou, time.time() - t],
+        #     f'./results_eval/val_nontarget_{alpha}.pt',
+        # )
+        t = time.time()
+        precision, recall, f1, ap, meaniou = evaluation_target('val', alpha=alpha)
+        print(ap, meaniou)
+        torch.save(
+            [precision, recall, f1, ap, meaniou, time.time() - t],
+            f'./results_eval/val_target_{alpha}.pt',
+        )
 
-    import pandas as pd
+        # t = time.time()
+        # precision, recall, f1, ap, meaniou = evaluation_nontarget('test')
+        # print(ap, meaniou)
+        # torch.save(
+        #     [precision, recall, f1, ap, meaniou, time.time() - t],
+        #     f'./results_eval/test_nontarget_{alpha}.pt',
+        # )
+        t = time.time()
+        precision, recall, f1, ap, meaniou = evaluation_target('test', alpha=alpha)
+        print(ap, meaniou)
+        torch.save(
+            [precision, recall, f1, ap, meaniou, time.time() - t],
+            f'./results_eval/test_target_{alpha}.pt',
+        )
 
-    res = []  # pd.DataFrame(columns=['precision', 'recall', 'f1', 'ap', 'meaniou'])
+    # import pandas as pd
 
-    for name in ['val_nontarget', 'test_nontarget', 'val_target', 'test_target']:
-        data = torch.load(f'{name}.pt', map_location='cpu')
-        print(len(data))
-        data = [np.mean(d) if isinstance(d, np.ndarray) else d for d in data]
-        data = [np.round(d, 3) for d in data]
-        res.append(data)
-    # print(torch.load('test_target.pt')[0])
-    # exit()
+    # res = []  # pd.DataFrame(columns=['precision', 'recall', 'f1', 'ap', 'meaniou'])
 
-    df = pd.DataFrame(res, columns=['precision', 'recall', 'f1', 'ap', 'meaniou'])
+    # for name in ['val_nontarget', 'test_nontarget', 'val_target', 'test_target']:
+    #     data = torch.load(f'{name}.pt', map_location='cpu')
+    #     print(len(data))
+    #     data = [np.mean(d) if isinstance(d, np.ndarray) else d for d in data]
+    #     data = [np.round(d, 3) for d in data]
+    #     res.append(data)
+    # # print(torch.load('test_target.pt')[0])
+    # # exit()
 
-    df.to_csv('result.csv', index=None)
+    # df = pd.DataFrame(res, columns=['precision', 'recall', 'f1', 'ap', 'meaniou'])
+
+    # df.to_csv('result.csv', index=None)
