@@ -131,9 +131,8 @@ test*.py
 test*.sh
 checkpoints_v2/
 /data
-/cvpiclr
-/hyp.py
 /pseudo_dataset
 /ckpts
 *.csv
 *.png
+*.bak
